@@ -77,7 +77,7 @@ def main():
     snapshot("07-ipv6", "IPv6 + ICMPv6：按网络层过滤，并显示上层 Echo Request")
     window.display_filter.clear()
     window.apply_filter()
-    window.tabs.setCurrentIndex(2)
+    window.tabs.setCurrentWidget(window.stats_view)
     snapshot("08-statistics", "统计与能力说明：真实界面自动操作演示；教学数据不作为实时抓包证据")
     live_path = output / "live-loopback.pcap"
     if live_path.exists():

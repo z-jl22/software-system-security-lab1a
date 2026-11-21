@@ -16,6 +16,7 @@ from .filters import FilterError, compile_filter
 from .parser import decode, hexdump
 from .pcap import Pcap, PcapError, read_pcap, write_pcap
 from .streams import FlowTracker
+from .processes import ProcessMonitor
 
 
 class PacketModel(QAbstractTableModel):
@@ -102,6 +103,8 @@ class MainWindow(QMainWindow):
         self.tracker = FlowTracker()
         self.predicate = compile_filter("")
         self.flow_filter = ""
+        self.process_filter = None
+        self.process_monitor = None
         self.model = PacketModel()
         self.build_ui()
         self.refresh_interfaces()
@@ -158,6 +161,22 @@ class MainWindow(QMainWindow):
         filtering.addWidget(self.display_filter)
         filtering.addWidget(apply_button)
         layout.addLayout(filtering)
+        process_controls = QHBoxLayout()
+        process_controls.addWidget(QLabel("进程 TCP 流"))
+        self.process_selector = QComboBox()
+        self.process_selector.setMinimumWidth(320)
+        self.process_selector.addItem("实时抓包后自动发现关联进程", None)
+        self.process_follow_button = QPushButton("追踪所选进程")
+        self.process_follow_button.clicked.connect(self.follow_process)
+        self.process_reset_button = QPushButton("取消进程筛选")
+        self.process_reset_button.clicked.connect(self.reset_process)
+        process_controls.addWidget(self.process_selector, 1)
+        process_controls.addWidget(self.process_follow_button)
+        process_controls.addWidget(self.process_reset_button)
+        layout.addLayout(process_controls)
+        self.process_status = QLabel("进程归属仅在 macOS 实时抓包中采集；普通 PCAP 不含 PID。")
+        self.process_status.setWordWrap(True)
+        layout.addWidget(self.process_status)
         self.session_label = QLabel("就绪。实时抓包需 BPF 权限；教学样例不需要权限。")
         self.session_label.setWordWrap(True)
         layout.addWidget(self.session_label)
@@ -190,6 +209,9 @@ class MainWindow(QMainWindow):
         self.flow_view.setReadOnly(True)
         self.flow_view.setFont(QFont("Menlo", 11))
         tabs.addTab(self.flow_view, "TCP 流（按捕获顺序）")
+        self.process_view = QPlainTextEdit()
+        self.process_view.setReadOnly(True)
+        tabs.addTab(self.process_view, "进程 TCP 流")
         self.stats_view = QPlainTextEdit()
         self.stats_view.setReadOnly(True)
         tabs.addTab(self.stats_view, "统计与能力说明")
@@ -261,6 +283,9 @@ class MainWindow(QMainWindow):
             return
         self.clear()
         self.worker = CaptureWorker(self.interfaces.currentData(), self.capture_filter.text())
+        self.process_monitor = ProcessMonitor()
+        self.process_monitor.start()
+        self.process_status.setText("正在采样进程 TCP 连接；只显示与已捕获流成功关联的进程。")
         self.set_running(True)
         self.session_label.setText(f"实时抓包：{self.interfaces.currentData()}；捕获过滤：{self.capture_filter.text() or '无'}")
         self.worker.start()
@@ -274,6 +299,7 @@ class MainWindow(QMainWindow):
     def drain(self):
         if not self.worker:
             return
+        self.drain_processes()
         records = []
         for count in range(1000):
             try:
@@ -287,6 +313,10 @@ class MainWindow(QMainWindow):
         self.update_status()
         if not self.worker.is_alive() and self.worker.events.empty():
             error, dropped = self.worker.error, self.worker.dropped
+            self.drain_processes()
+            if self.process_monitor:
+                self.process_monitor.stop_event.set()
+                self.process_monitor = None
             self.worker = None
             self.set_running(False)
             self.session_label.setText(f"抓包结束。应用队列丢弃 {dropped} 包；驱动/内核丢包未统计。"
@@ -310,13 +340,72 @@ class MainWindow(QMainWindow):
             self.tracker.add(packet)
             if self.matches(packet):
                 visible.append(packet)
-        self.model.append(visible)
+        if self.process_filter is None:
+            self.model.append(visible)
+        else:
+            self.refilter()
         if self.flow_filter:
             self.flow_view.setPlainText(self.tracker.describe(self.flow_filter))
+        self.refresh_processes()
         self.update_status()
 
     def matches(self, packet):
-        return self.predicate(packet) and (not self.flow_filter or packet.flow_id == self.flow_filter)
+        return (self.predicate(packet) and (not self.flow_filter or packet.flow_id == self.flow_filter)
+                and (self.process_filter is None or (packet.flow_id in self.tracker.flows
+                     and self.process_filter in self.tracker.flows[packet.flow_id].owners)))
+
+    def drain_processes(self):
+        if self.process_monitor is None:
+            return
+        changed = False
+        while True:
+            try:
+                snapshot = self.process_monitor.events.get_nowait()
+            except queue.Empty:
+                break
+            changed = self.tracker.observe_processes(snapshot) or changed
+            self.process_status.setText(f"进程采样：{snapshot.process_count} 个可见 TCP 进程；"
+                                        "精确匹配双向 IP/端口，短连接可能漏采。"
+                                        + (f" 查询提示：{snapshot.warning}" if snapshot.warning else ""))
+        if self.process_monitor.error:
+            self.process_status.setText("进程采样失败（抓包仍可继续）：" + self.process_monitor.error)
+        if changed:
+            self.refresh_processes()
+            if self.process_filter is not None:
+                self.refilter()
+            if self.flow_filter:
+                self.flow_view.setPlainText(self.tracker.describe(self.flow_filter))
+
+    def refresh_processes(self):
+        processes = self.tracker.processes()
+        existing = [self.process_selector.itemData(index) for index in range(self.process_selector.count())]
+        if processes and existing != processes:
+            selected = self.process_selector.currentData()
+            self.process_selector.clear()
+            for process in processes:
+                self.process_selector.addItem(process.label, process)
+            if selected in processes:
+                self.process_selector.setCurrentIndex(processes.index(selected))
+        if self.process_filter is not None:
+            self.process_view.setPlainText(self.tracker.describe_process(self.process_filter))
+
+    def follow_process(self):
+        process = self.process_selector.currentData()
+        if process is None:
+            self.show_error("尚无已关联进程。请在 macOS 实时抓包期间产生持续 TCP 通信；"
+                            "离线 PCAP 和教学样例不含进程归属。")
+            return
+        self.process_filter = process
+        self.flow_filter = ""
+        self.display_filter.clear()
+        self.predicate = compile_filter("")
+        self.refresh_processes()
+        self.refilter()
+        self.tabs.setCurrentWidget(self.process_view)
+
+    def reset_process(self):
+        self.process_filter = None
+        self.refilter()
 
     def apply_filter(self):
         try:
@@ -339,6 +428,11 @@ class MainWindow(QMainWindow):
         self.packets, self.linktype, self.flow_filter = [], None, ""
         self.stored_bytes, self.capacity_reached = 0, False
         self.tracker = FlowTracker()
+        self.process_filter = None
+        self.process_selector.clear()
+        self.process_selector.addItem("实时抓包后自动发现关联进程", None)
+        self.process_status.setText("进程归属仅在 macOS 实时抓包中采集；普通 PCAP 不含 PID。")
+        self.process_view.clear()
         self.model.replace([])
         self.tree.clear()
         self.hex_view.clear()
@@ -368,6 +462,7 @@ class MainWindow(QMainWindow):
             self.show_error("所选数据包不包含 TCP 层")
             return
         self.flow_filter = packet.flow_id
+        self.process_filter = None
         self.display_filter.clear()
         self.predicate = compile_filter("")
         self.flow_view.setPlainText(self.tracker.describe(self.flow_filter))
@@ -424,19 +519,24 @@ class MainWindow(QMainWindow):
         total = sum(len(packet.raw) for packet in self.packets)
         self.statusBar().showMessage(f"已存 {len(self.packets)} / {self.limit} 包 · 显示 {len(self.model.rows)} 包 · "
                                      f"{total} 字节 · TCP 流 {len(self.tracker.flows)}"
-                                     + (f" · 当前 {self.flow_filter}" if self.flow_filter else ""))
+                                     + (f" · 当前 {self.flow_filter}" if self.flow_filter else "")
+                                     + (f" · PID {self.process_filter.pid}" if self.process_filter else ""))
         self.stats_view.setPlainText("协议统计（整个会话，按最上层已识别协议互斥计数）\n\n" +
                                     "\n".join(f"{name:10s} {count}" for name, count in sorted(counts.items())) +
                                     "\n\n能力与限制\n"
                                     "• libpcap 直接调用；实时模式为非混杂模式。\n"
                                     "• 支持 Ethernet/VLAN、macOS Loopback、Raw IP。\n"
                                     "• IPv4/IPv6、ARP、TCP/UDP、ICMP/ICMPv6、DNS 首个问题、段内 HTTP/1.x、TLS 记录头特征。\n"
-                                    "• 不做 IP 分片重组、TCP 字节流重组、HTTPS 解密或进程关联。\n"
+                                    "• macOS 通过 lsof/ps 实时采样进程连接，支持按进程查看关联的全部已捕获 TCP 流。\n"
+                                    "• 进程关联可能漏掉短连接或权限不可见进程；PCAP 不保存进程元数据。\n"
+                                    "• 不做 IP 分片重组、TCP 字节流重组或 HTTPS 解密。\n"
                                     "• 仅支持经典 PCAP；不支持 PCAPNG。上限 20000 包 / 64 MiB 原始字节，队列上限 4096。\n"
                                     "• TCP 流按双向端点归组，并使用 SYN/空闲超时区分部分端点复用。\n"
                                     "• 队列丢弃不等于内核丢包；不提供无丢包保证。")
 
     def closeEvent(self, event):
+        if self.process_monitor:
+            self.process_monitor.stop_event.set()
         if self.worker:
             self.worker.stop_event.set()
             self.worker.join(timeout=1)
