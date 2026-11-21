@@ -112,7 +112,7 @@ class CoreTests(unittest.TestCase):
             decode(1, 1, raw, len(raw), generator.choice([0, 1, 12, 108, 999]))
 
     def test_pcap_roundtrip(self):
-        with tempfile.TemporaryDirectory(dir="tmp") as directory:
+        with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "roundtrip.pcap"
             write_pcap(path, self.packets, 1)
             records = list(read_pcap(path))
@@ -120,7 +120,7 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(records[0][0], self.packets[0].timestamp)
 
     def test_bad_pcap(self):
-        with tempfile.TemporaryDirectory(dir="tmp") as directory:
+        with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "bad.pcap"
             for raw in (b"", b"\x0a\x0d\x0d\x0a" + bytes(20),
                         struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1) + bytes(3)):
@@ -129,7 +129,7 @@ class CoreTests(unittest.TestCase):
                     list(read_pcap(path))
 
     def test_pcap_endian_nanoseconds(self):
-        with tempfile.TemporaryDirectory(dir="tmp") as directory:
+        with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "nano.pcap"
             raw = self.frames[0]
             path.write_bytes(struct.pack(">IHHIIII", 0xA1B23C4D, 2, 4, 0, 0, 65535, 1) +

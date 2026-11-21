@@ -58,9 +58,9 @@ def build_report(path):
     def screenshot(name, caption):
         image_path = VERIFY / f"{name}.png"
         if image_path.exists():
-            story.append(Image(str(image_path), width=170 * mm, height=111 * mm))
+            story.append(Image(str(image_path), width=160 * mm, height=104.45 * mm))
             story.append(Paragraph(escape(caption), small))
-            story.append(Spacer(1, 4 * mm))
+            story.append(Spacer(1, 2 * mm))
 
     story.append(Spacer(1, 25 * mm))
     paragraph("《软件与系统安全》实验 1A", "Title")
