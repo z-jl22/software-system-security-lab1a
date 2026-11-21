@@ -7,7 +7,7 @@ from sniffer.pcap import Pcap, read_pcap, write_pcap
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Lantern macOS 网络嗅探器")
+    parser = argparse.ArgumentParser(description="Network Sniffer for macOS")
     parser.add_argument("--list", action="store_true", help="列出 libpcap 网卡")
     parser.add_argument("--read", metavar="PCAP", help="在 GUI 中打开经典 PCAP")
     parser.add_argument("--inspect", metavar="PCAP", help="无 GUI 解析 PCAP，输出 JSON")

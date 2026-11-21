@@ -1,1 +1,1 @@
-"""Lantern: a macOS libpcap network sniffer."""
+"""A macOS libpcap network sniffer."""

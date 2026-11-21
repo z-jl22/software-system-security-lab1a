@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QTimer
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QColor, QFont, QPalette
 from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QHBoxLayout, QHeaderView,
                                QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit,
                                QPushButton, QSplitter, QTabWidget, QTableView, QTreeWidget,
@@ -94,7 +94,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Lantern · 网络嗅探器 | 张家乐 202618015029006")
+        self.setWindowTitle("Network Sniffer | 张家乐 202618015029006")
         self.resize(1320, 850)
         self.packets, self.worker, self.linktype = [], None, None
         self.stored_bytes = 0
@@ -112,7 +112,7 @@ class MainWindow(QMainWindow):
     def build_ui(self):
         root = QWidget()
         layout = QVBoxLayout(root)
-        title = QLabel("LANTERN    网络嗅探与协议分析")
+        title = QLabel("Network Sniffer · 协议分析")
         title.setStyleSheet("font-size:24px; font-weight:700; color:#0f766e; padding:8px 0;")
         layout.addWidget(title)
         controls = QHBoxLayout()
@@ -198,9 +198,37 @@ class MainWindow(QMainWindow):
         split.setSizes([390, 300])
         layout.addWidget(split)
         self.setCentralWidget(root)
-        self.setStyleSheet("QMainWindow {background:#f6f8fa;} QLineEdit,QComboBox {padding:6px;} "
-                           "QPushButton {padding:6px 10px;} QTableView,QTreeWidget,QPlainTextEdit {background:white;} "
-                           "QHeaderView::section {background:#e6f1f0; padding:6px; border:0;}")
+        palette = QPalette()
+        for role, color in (
+            (QPalette.Window, "#f6f8fa"), (QPalette.WindowText, "#1f2937"),
+            (QPalette.Base, "#ffffff"), (QPalette.AlternateBase, "#f1f5f9"),
+            (QPalette.Text, "#1f2937"), (QPalette.Button, "#e9eef3"),
+            (QPalette.ButtonText, "#1f2937"), (QPalette.PlaceholderText, "#596579"),
+            (QPalette.Highlight, "#155e75"), (QPalette.HighlightedText, "#ffffff"),
+            (QPalette.ToolTipBase, "#ffffff"), (QPalette.ToolTipText, "#1f2937"),
+        ):
+            palette.setColor(role, QColor(color))
+        for role in (QPalette.WindowText, QPalette.Text, QPalette.ButtonText, QPalette.PlaceholderText):
+            palette.setColor(QPalette.Disabled, role, QColor("#64748b"))
+        self.setPalette(palette)
+        self.setStyleSheet("QWidget {color:#1f2937;} QMainWindow {background:#f6f8fa;} "
+                           "QLineEdit,QComboBox {background:#ffffff; color:#1f2937; padding:6px; "
+                           "selection-background-color:#155e75; selection-color:#ffffff;} "
+                           "QPushButton {background:#e9eef3; color:#1f2937; padding:6px 10px; "
+                           "border:1px solid #b8c4d1; border-radius:4px;} "
+                           "QPushButton:hover {background:#dce7ef;} "
+                           "QPushButton:pressed {background:#cbdce7;} "
+                           "QPushButton:disabled,QLineEdit:disabled,QComboBox:disabled "
+                           "{background:#edf1f5; color:#64748b;} "
+                           "QTableView,QTreeWidget,QPlainTextEdit,QComboBox QAbstractItemView "
+                           "{background:#ffffff; color:#1f2937; alternate-background-color:#f1f5f9; "
+                           "selection-background-color:#155e75; selection-color:#ffffff;} "
+                           "QTableView::item:selected,QTreeWidget::item:selected "
+                           "{background:#155e75; color:#ffffff;} "
+                           "QHeaderView::section {background:#e6f1f0; color:#1f2937; padding:6px; border:0;} "
+                           "QTabBar::tab {background:#e9eef3; color:#334155; padding:7px 12px;} "
+                           "QTabBar::tab:selected {background:#ffffff; color:#0f5b55;} "
+                           "QToolTip {background:#ffffff; color:#1f2937; border:1px solid #b8c4d1;}")
         self.update_status()
 
     def refresh_interfaces(self):

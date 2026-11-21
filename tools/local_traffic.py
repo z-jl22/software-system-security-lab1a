@@ -9,7 +9,7 @@ import time
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        body = b"Hello Lantern: local HTTP experiment\n"
+        body = b"Hello Sniffer: local HTTP experiment\n"
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))

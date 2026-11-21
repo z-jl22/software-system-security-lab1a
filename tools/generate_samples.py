@@ -40,7 +40,7 @@ def ethernet(payload, kind=0x0800):
 
 def sample_frames():
     request = b"GET /lab HTTP/1.1\r\nHost: example.test:8080\r\nConnection: close\r\n\r\n"
-    response = b"HTTP/1.1 200 OK\r\nContent-Length: 13\r\nConnection: close\r\n\r\nHello Lantern"
+    response = b"HTTP/1.1 200 OK\r\nContent-Length: 13\r\nConnection: close\r\n\r\nHello Sniffer"
     frames = [ethernet(tcp(51000, 8080, 1000, 0, 2)),
               ethernet(tcp(8080, 51000, 9000, 1001, 18, reverse=True)),
               ethernet(tcp(51000, 8080, 1001, 9001, 16)),
@@ -56,7 +56,7 @@ def sample_frames():
     frames.append(ethernet(ipv4(struct.pack("!HHHH", 53, 53000, len(dns_response) + 8, 0) + dns_response, 17,
                                    "192.0.2.20", "192.0.2.10")))
     for kind, source, destination in ((8, "192.0.2.10", "192.0.2.20"), (0, "192.0.2.20", "192.0.2.10")):
-        icmp = struct.pack("!BBHHH", kind, 0, 0, 12, 1) + b"Lantern test"
+        icmp = struct.pack("!BBHHH", kind, 0, 0, 12, 1) + b"Sniffer test"
         icmp = icmp[:2] + struct.pack("!H", checksum(icmp)) + icmp[4:]
         frames.append(ethernet(ipv4(icmp, 1, source, destination)))
     arp = struct.pack("!HHBBH", 1, 0x0800, 6, 4, 1) + bytes.fromhex("020000000001c000020a000000000000c0000214")

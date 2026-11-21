@@ -64,7 +64,7 @@ def build_report(path):
 
     story.append(Spacer(1, 25 * mm))
     paragraph("《软件与系统安全》实验 1A", "Title")
-    paragraph("Lantern：带 GUI 的网络嗅探器\n设计与实现", "Title")
+    paragraph("Network Sniffer\n带 GUI 的网络嗅探器设计与实现", "Title")
     story.append(Spacer(1, 15 * mm))
     paragraph(f"姓名：{META['name']}\n学号：{META['student_id']}\n实验平台：macOS 15.6 / Apple Silicon\n实现：Python + PySide6 + libpcap\n日期：2026 年 11 月 21 日")
     paragraph("Git 仓库：" + (META["repository"] or "待创建并补充实际 URL（个人主页不是仓库地址）"))
@@ -155,14 +155,14 @@ def build_report(path):
         canvas.saveState()
         canvas.setFont("Chinese", 8)
         canvas.setFillColor(colors.HexColor("#64748b"))
-        canvas.drawString(20 * mm, 13 * mm, f"Lantern | {META['name']} {META['student_id']} | 实验 1A")
+        canvas.drawString(20 * mm, 13 * mm, f"Network Sniffer | {META['name']} {META['student_id']} | 实验 1A")
         canvas.drawRightString(190 * mm, 13 * mm, str(document.page))
         canvas.restoreState()
 
     document = SimpleDocTemplate(str(path), pagesize=(210 * mm, 297 * mm),
                                  leftMargin=20 * mm, rightMargin=20 * mm,
                                  topMargin=18 * mm, bottomMargin=22 * mm,
-                                 title="Lantern 嗅探器设计与实现", author=META["name"])
+                                 title="Network Sniffer：网络嗅探器设计与实现", author=META["name"])
     document.build(story, onFirstPage=page_footer, onLaterPages=page_footer)
 
 
